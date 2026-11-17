@@ -6,6 +6,7 @@ import { renderDriverReminder } from '@/server/email/templates/driverReminder';
 import { renderCustomerConfirmation } from '@/server/email/templates/customerConfirmation';
 import { renderAlertSummary } from '@/server/email/templates/summary';
 import { env } from '@/server/config/env';
+import { sendTelegram } from '@/server/telegram/client';
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 3_600_000;
@@ -114,6 +115,11 @@ async function processRow(row: Row): Promise<Outcome> {
     };
   } else {
     return fail('unsupported_type', true);
+  }
+  // Telegram copy of the driver alerts: best effort, once per row, never blocks the email
+    if (row.retryCount === 0 && (row.type === 'new_request' || row.type === 'reminder')) {
+    const sent = await sendTelegram(mail.text);
+    if (!sent.ok && sent.error !== 'not_configured') console.error('Telegram alert failed:', sent.error);
   }
 
   const result = await sendEmail(mail);
